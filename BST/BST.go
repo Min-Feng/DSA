@@ -88,7 +88,10 @@ func (b *BST) Remove(want int) {
 		return 
 	}
 
-	//根據刪除的節點狀態,有四種情況
+	// fmt.Printf("%p %#v \n",node,node)
+	// fmt.Printf("%p %#v \n",node.parent,node.parent)
+
+	// 根據刪除的節點狀態,有四種情況
 	switch  {
 	case (node.Left() == nil) && (node.Right() == nil) :
 		if node.parent.left == node {
@@ -113,13 +116,45 @@ func (b *BST) Remove(want int) {
 		node.left.parent = node.parent
 		node.left = nil
 	default:
+		maxNode:=max(node)
 
+		if node.parent.left == node {
+			node.parent.left = maxNode
+		} else {
+			node.parent.right = maxNode
+		}
+
+		node.left.parent = maxNode.left
+		minNode:=min(maxNode)
+		minNode.left = node.left
+		maxNode.parent = node.parent
+		node.right = nil
+		node.left = nil
 	}
-	fmt.Println(node.parent)
+	node.bst.num--
 	node.parent = nil
 	node.bst = nil
-	node.bst.num--
 	return 
+}
+
+// min 以該節點為子樹,尋找子樹中的最小值節點
+func min(tree *Node) *Node{
+	for {
+        if tree.left == nil {
+            return tree
+        }
+        tree = tree.left
+    }
+}
+
+// max 以該節點為子樹,尋找子樹中的最大值節點
+func max(tree *Node) *Node{
+	for {
+        if tree.right == nil {
+            return tree
+        }
+        tree = tree.right
+    }
 }
 
 // DataOfBST 回傳二元搜尋樹內的數值,以中序走訪的方式排列
@@ -216,4 +251,11 @@ func main() {
 	// 	fmt.Println("找不到該節點")
 	// }
 	// fmt.Printf("%v %p %p\n", bst.root, bst.root, bst.root.parent)
+
+	for _,v:=range bst.DataOfBST(){
+		node,_:=bst.Search(v)
+		fmt.Printf("%p %#v \n",node,node)
+		fmt.Printf("%p %#v \n",node.parent,node.parent)
+		fmt.Println()
+	}
 }
