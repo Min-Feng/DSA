@@ -10,7 +10,6 @@ type Node struct {
 	parent      *Node
 	left, right *Node
 	bst         *BST //所屬的BST,為了更新BST結構中的變數num
-	depth       int  //該節點在BST的哪一層
 	value       int
 }
 
@@ -20,17 +19,13 @@ func (node Node) Left() *Node { return node.left }
 // Right 查詢該node的右節點
 func (node Node) Right() *Node { return node.right }
 
-// Depth 查詢該node的Depth
-func (node Node) Depth() int { return node.depth }
-
 // Value 查詢該node的value
 func (node Node) Value() int { return node.value }
 
 // BST 二元搜尋樹結構
 type BST struct {
-	root  *Node
-	num   int
-	hight int
+	root *Node
+	num  int
 }
 
 // New 產生一個新的二元搜尋樹
@@ -39,33 +34,24 @@ func New() *BST { return new(BST) }
 // Len 回傳搜尋樹中的節點個數
 func (b *BST) Len() int { return b.num }
 
-// Hight 回傳搜尋樹的高度
-func (b *BST) Hight() int { return b.hight }
-
 // Push 將資料插入二元搜尋樹的結構
 func (b *BST) Push(v int) {
-	b.root = push(b.root, &Node{value: v, bst: b, depth: 1})
+	b.root = push(b.root, &Node{value: v, bst: b})
 }
 
 func push(root, node *Node) *Node {
 	if root == nil {
 		root = node
 		root.bst.num++
-
-		if node.depth > root.bst.hight {
-			root.bst.hight++
-		}
 		return root
 	}
 
 	v := node.value
 	switch {
 	case root.value > v:
-		node.depth++
 		node.parent = root
 		root.left = push(root.left, node)
 	case root.value < v:
-		node.depth++
 		node.parent = root
 		root.right = push(root.right, node)
 	default:
@@ -77,84 +63,104 @@ func push(root, node *Node) *Node {
 
 // Remove 移除BST內的特定節點
 func (b *BST) Remove(want int) {
-	node, ok := b.Search(want)
-	if node != nil && !ok {
+	oldNode, ok := b.Search(want)
+	if oldNode != nil && !ok {
 		log.Printf("數值%d,在BST 無法找到\n", want)
-		return 
+		return
 	}
 
-	if node == nil && !ok {
+	if oldNode == nil && !ok {
 		log.Println("BST內無元素 無法移除元素")
-		return 
+		return
 	}
 
-	// fmt.Printf("%p %#v \n",node,node)
-	// fmt.Printf("%p %#v \n",node.parent,node.parent)
+	// fmt.Printf("%p %#v \n",oldNode,oldNode)
+	// fmt.Printf("%p %#v \n",oldNode.parent,oldNode.parent)
 
-	// 根據刪除的節點狀態,有四種情況
-	switch  {
-	case (node.Left() == nil) && (node.Right() == nil) :
-		if node.parent.left == node {
-			node.parent.left = nil
-		} else {
-			node.parent.right = nil
-		}
-	case node.Left() == nil:
-		if node.parent.left == node {
-			node.parent.left = node.right
-		} else {
-			node.parent.right = node.right
-		}
-		node.right.parent = node.parent
-		node.right = nil
-	case node.Right() == nil:
-		if node.parent.left == node {
-			node.parent.left = node.left
-		} else {
-			node.parent.right = node.left
-		}
-		node.left.parent = node.parent
-		node.left = nil
+	// 刪除的節點,依據其子節點狀態,有四種情況
+	var newNode *Node
+	switch {
+	case (oldNode.Left() == nil) && (oldNode.Right() == nil):
+		newNode = nil
+		updateChildOfParentOfOldNode(oldNode, newNode)
+	case oldNode.Left() == nil:
+		newNode = oldNode.right
+		updateChildOfParentOfOldNode(oldNode, newNode)
+		newNode.parent = oldNode.parent
+		oldNode.right = nil // avoid memory leaks
+	case oldNode.Right() == nil:
+		newNode = oldNode.left
+		updateChildOfParentOfOldNode(oldNode, newNode)
+		newNode.parent = oldNode.parent
+		oldNode.left = nil // avoid memory leaks
 	default:
-		maxNode:=max(node)
+		// 新節點的選擇為 左子樹中的最大節點or右子樹中的最小節點 在此選前者
+		newNode = max(oldNode.left)
 
-		if node.parent.left == node {
-			node.parent.left = maxNode
-		} else {
-			node.parent.right = maxNode
+		// 更新 舊節點其父節點訊息
+		updateChildOfParentOfOldNode(oldNode, newNode)
+
+		// 更新 新節點 訊息
+		if newNode != oldNode.left {
+			// 若新節點不為舊節點的左節點,則肯定新節點存在於(舊節點其左節點)的右子樹中
+			min(newNode).left = oldNode.left
+
+			// 更新 新節點其父節點訊息
+			updateChildOfParentOfOldNode(newNode, nil)
+		}
+		newNode.parent = oldNode.parent
+		newNode.right = oldNode.right
+
+		// 更新 舊節點其子節點訊息
+		oldNode.right.parent = newNode
+		if min(newNode) != oldNode.left {
+			oldNode.left.parent = min(newNode)
 		}
 
-		node.left.parent = maxNode.left
-		minNode:=min(maxNode)
-		minNode.left = node.left
-		maxNode.parent = node.parent
-		node.right = nil
-		node.left = nil
+		// 釋放舊節點
+		oldNode.right = nil // avoid memory leaks
+		oldNode.left = nil  // avoid memory leaks
 	}
-	node.bst.num--
-	node.parent = nil
-	node.bst = nil
-	return 
+	oldNode.bst.num--
+	oldNode.parent = nil // avoid memory leaks
+	oldNode.bst = nil    // avoid memory leaks
+	return
+}
+
+// updateChildOfParentOfOldNode 移動或刪除二元樹的節點(oldNode)
+// 更新其父節點(parent)的子節點資訊,使其連接到新節點(newNode)
+func updateChildOfParentOfOldNode(oldNode, newNode *Node) {
+	// if old node is BST root node !
+	if oldNode.parent == nil {
+		newNode.bst.root = newNode
+		return
+	}
+
+	if oldNode.parent.left == oldNode {
+		oldNode.parent.left = newNode
+	} else {
+		oldNode.parent.right = newNode
+	}
 }
 
 // min 以該節點為子樹,尋找子樹中的最小值節點
-func min(tree *Node) *Node{
+func min(tree *Node) *Node {
 	for {
-        if tree.left == nil {
-            return tree
-        }
-        tree = tree.left
-    }
+		if tree.left == nil {
+			return tree
+		}
+		tree = tree.left
+	}
 }
 
 // max 以該節點為子樹,尋找子樹中的最大值節點
-func max(tree *Node) *Node{
+func max(tree *Node) *Node {
 	for {
-        if tree.right == nil {
-            return tree
-        }
-        tree = tree.right
-    }
+		if tree.right == nil {
+			return tree
+		}
+		tree = tree.right
+	}
 }
 
 // DataOfBST 回傳二元搜尋樹內的數值,以中序走訪的方式排列
@@ -170,6 +176,7 @@ func (b *BST) DataOfBST() []int {
 }
 
 func inOrder(node *Node, slice []Node) []Node {
+	// fmt.Printf("%p %#v \n", node, node)
 	if node != nil {
 		slice = inOrder(node.left, slice)
 		slice = append(slice, *node)
@@ -221,41 +228,38 @@ func main() {
 
 	bst.Push(25)
 	bst.Push(15)
-	bst.Push(30)
-	bst.Push(12)
-	bst.Push(17)
-	bst.Push(27)
-	bst.Push(16)
-	bst.Push(39)
-
-	// fmt.Println("搜尋樹的節點個數=", bst.Len())
-	// fmt.Println("搜尋樹的高度=", bst.Hight())
-	fmt.Println("新增後,搜尋樹內的元素列表", bst.DataOfBST())
+	bst.Push(45)
+	bst.Push(40)
+	bst.Push(65)
+	bst.Push(32)
+	bst.Push(43)
+	bst.Push(41)
+	bst.Push(42)
+	bst.Push(50)
+	fmt.Printf("新增後,節點個數 = %d \t 搜尋樹內的元素列表 = %v\n", bst.Len(), bst.DataOfBST())
 
 	// unsortData := []int{14, 34, 87, 35, 23, 1, 82}
 	// fmt.Println("未排序", unsortData)
 	// fmt.Println("已排序", Sort(unsortData))
 
-	// if node, ok := bst.Search(17); ok {
-	// 	fmt.Printf("尋找到該節點 Value=%d Depth=%d Pointer=%p Parent=%p\n", node.Value(), node.Depth(), node,node.parent)
+	// bst.Remove(15)
+	// bst.Remove(17)
+	// bst.Remove(30)
+	// bst.Remove(39)
+	bst.Remove(45)
+	bst.Remove(41)
+	fmt.Printf("新增後,節點個數 = %d \t 搜尋樹內的元素列表 = %v\n", bst.Len(), bst.DataOfBST())
+
+	// if node, ok := bst.Search(16); ok {
+	// 	fmt.Printf("尋找到該節點 %p %#v \n", node, node)
 	// } else {
 	// 	fmt.Println("找不到該節點")
 	// }
-	// fmt.Printf("%p %p\n",bst.root.left.right,bst.root.left)
 
-	bst.Remove(30)
-	fmt.Println("移除後,搜尋樹內的元素列表", bst.DataOfBST())
-	// if node, ok := bst.Search(30); ok {
-	// 	fmt.Printf("尋找到該節點 Value=%d Depth=%d Pointer=%p Parent=%p\n", node.Value(), node.Depth(), node, node.parent)
-	// } else {
-	// 	fmt.Println("找不到該節點")
+	// for _, v := range bst.DataOfBST() {
+	// 	node, _ := bst.Search(v)
+	// 	fmt.Printf("%p %#v \n", node, node)
+	// 	fmt.Printf("Pointer of parent = %p \n", node.parent)
+	// 	fmt.Println()
 	// }
-	// fmt.Printf("%v %p %p\n", bst.root, bst.root, bst.root.parent)
-
-	for _,v:=range bst.DataOfBST(){
-		node,_:=bst.Search(v)
-		fmt.Printf("%p %#v \n",node,node)
-		fmt.Printf("%p %#v \n",node.parent,node.parent)
-		fmt.Println()
-	}
 }
