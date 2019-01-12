@@ -35,8 +35,10 @@ func New() *BST { return new(BST) }
 func (b *BST) Len() int { return b.num }
 
 // Push 將資料插入二元搜尋樹的結構
-func (b *BST) Push(v int) {
-	b.root = push(b.root, &Node{value: v, bst: b})
+func (b *BST) Push(values ...int) {
+	for _,v := range values{
+		b.root = push(b.root, &Node{value: v, bst: b})
+	}
 }
 
 func push(root, node *Node) *Node {
@@ -226,16 +228,9 @@ func Sort(values []int) []int {
 func main() {
 	bst := New()
 
-	bst.Push(25)
-	bst.Push(15)
-	bst.Push(45)
-	bst.Push(40)
-	bst.Push(65)
-	bst.Push(32)
-	bst.Push(43)
-	bst.Push(41)
-	bst.Push(42)
-	bst.Push(50)
+	inputValus:=[]int{25,15,45,40,65,32,43,41,42,50}
+	bst.Push(inputValus...)
+
 	fmt.Printf("新增後,節點個數 = %d \t 搜尋樹內的元素列表 = %v\n", bst.Len(), bst.DataOfBST())
 
 	// unsortData := []int{14, 34, 87, 35, 23, 1, 82}

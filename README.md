@@ -8,6 +8,7 @@
   - 以中序走訪列出搜尋樹內的元素
   - 輸入未排序的數列,回傳sort後的數列
   - Remove method 完成
+  - 將Push函數 改為 可變數量的參數形式
 - 預計完成
   - 使用 test package , 進行測試
   - 將input元素 換成 interface
